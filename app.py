@@ -145,7 +145,14 @@ def home():
 
         return render_template('index.html', semesters=semesters)
     except Exception as e:
-        semesters = []
+        try:
+            conn = sqlite3.connect('database.db')
+            cur = conn.cursor()
+            cur.execute("SELECT DISTINCT Sem FROM `CUTM`")
+            semesters = [row[0] for row in cur.fetchall()]
+            conn.close()
+        except:
+            semesters = []
         return render_template('index.html', error='An error occurred while processing your request', semesters=semesters)
 
 @app.route('/semesters', methods=['POST'])
