@@ -12,6 +12,30 @@ load_dotenv()
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key-here')
 
+# Initialize database if it doesn't exist
+def init_db():
+    try:
+        conn = sqlite3.connect('database.db')
+        cur = conn.cursor()
+        # Create table if it doesn't exist
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS CUTM (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                Reg_No TEXT,
+                Name TEXT,
+                Sem TEXT,
+                Credits TEXT,
+                Grade TEXT
+            )
+        ''')
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"Database initialization error: {e}")
+
+# Initialize database on startup
+init_db()
+
 ADMIN_USERNAME = os.getenv('ADMIN_USERNAME')
 ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD')
 MONGO_URI = os.getenv('MONGO_URI')
@@ -80,6 +104,7 @@ def calculate_cgpa(registration, name):
 
 @app.route('/', methods=['GET', 'POST'])
 def home():
+    semesters = []
     try:
         conn = sqlite3.connect('database.db')
         cur = conn.cursor()
@@ -92,6 +117,12 @@ def home():
         
         semesters = [row[0] for row in cur.fetchall()]
         conn.close()
+    except Exception as db_error:
+        print(f"Database connection error: {db_error}")
+        # Continue with empty semesters list
+        pass
+    
+    try:
 
         result = None
         count = 0
@@ -145,14 +176,7 @@ def home():
 
         return render_template('index.html', semesters=semesters)
     except Exception as e:
-        try:
-            conn = sqlite3.connect('database.db')
-            cur = conn.cursor()
-            cur.execute("SELECT DISTINCT Sem FROM `CUTM`")
-            semesters = [row[0] for row in cur.fetchall()]
-            conn.close()
-        except:
-            semesters = []
+        print(f"Application error: {e}")
         return render_template('index.html', error='An error occurred while processing your request', semesters=semesters)
 
 @app.route('/semesters', methods=['POST'])
@@ -185,4 +209,5 @@ def about():
     return render_template('about.html')
 
 if __name__ == '__main__':
-    app.run(host='127.0.0.1', port=8081, debug=True)
+    port = int(os.environ.get('PORT', 8081))
+    app.run(host='0.0.0.0', port=port, debug=False)
