@@ -145,7 +145,8 @@ def home():
 
         return render_template('index.html', semesters=semesters)
     except Exception as e:
-        return render_template('index.html', error='An error occurred while processing your request')
+        semesters = []
+        return render_template('index.html', error='An error occurred while processing your request', semesters=semesters)
 
 @app.route('/semesters', methods=['POST'])
 def get_semesters():
