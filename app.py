@@ -117,87 +117,95 @@ def calculate_cgpa(registration, name):
 
 @app.route('/', methods=['GET', 'POST'])
 def home():
-    semesters = []
-    try:
-        conn = sqlite3.connect('database.db')
-        cur = conn.cursor()
-
-        if request.method == 'POST' and request.form.get('registration'):
-            registration = request.form.get('registration')
-            cur.execute("SELECT DISTINCT Sem FROM `CUTM` WHERE Reg_No = ?", (registration,))
-        else:
-            cur.execute("SELECT DISTINCT Sem FROM `CUTM`")
-        
-        semesters = [row[0] for row in cur.fetchall()]
-        conn.close()
-    except Exception as db_error:
-        print(f"Database connection error: {db_error}")
-        # Continue with empty semesters list
-        pass
+    # Return simple HTML if templates don't exist
+    if not os.path.exists('templates/index.html'):
+        return '''
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>CUTM Result Portal</title>
+            <style>
+                body { font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }
+                .container { max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; }
+                h1 { color: #4682b4; text-align: center; }
+                .form-group { margin: 20px 0; }
+                label { display: block; margin-bottom: 5px; font-weight: bold; }
+                input, select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; }
+                button { background: #4682b4; color: white; padding: 12px 30px; border: none; border-radius: 5px; cursor: pointer; }
+                button:hover { background: #36648b; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1>CUTM Result Portal</h1>
+                <p style="text-align: center; color: #666;">University of Technology and Management, PKD</p>
+                <form method="post">
+                    <div class="form-group">
+                        <label>Registration Number:</label>
+                        <input type="number" name="registration" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Semester:</label>
+                        <select name="semester" required>
+                            <option value="">Select Semester</option>
+                            <option value="1">Semester 1</option>
+                            <option value="2">Semester 2</option>
+                            <option value="3">Semester 3</option>
+                            <option value="4">Semester 4</option>
+                            <option value="5">Semester 5</option>
+                            <option value="6">Semester 6</option>
+                            <option value="7">Semester 7</option>
+                            <option value="8">Semester 8</option>
+                        </select>
+                    </div>
+                    <div style="text-align: center;">
+                        <button type="submit">Search Results</button>
+                    </div>
+                </form>
+                <p style="text-align: center; margin-top: 30px; color: #666; font-size: 12px;">
+                    &copy; 2025 The New CUTM Result Portal 2.0. All rights reserved.
+                </p>
+            </div>
+        </body>
+        </html>
+        '''
     
-    try:
-
-        result = None
-        count = 0
-        sgpa = None
-        total_credits = None
-        cgpa = None
-        total_all_semester_credits = 0
-        message = None
-
-        if request.method == 'POST':
-            name = request.form.get('name')
-            registration = request.form.get('registration')
-            semester = request.form.get('semester')
-
+    # Handle POST request
+    if request.method == 'POST':
+        registration = request.form.get('registration')
+        semester = request.form.get('semester')
+        
+        try:
             conn = sqlite3.connect('database.db')
             cur = conn.cursor()
-
-            cur.execute("SELECT * FROM `CUTM` WHERE (Reg_No = ? OR LOWER(Name) = LOWER(?)) AND Sem = ?", (registration, name, semester))
+            cur.execute("SELECT * FROM `CUTM` WHERE Reg_No = ? AND Sem = ?", (registration, semester))
             result = cur.fetchall()
             count = len(result)
-
-            if count == 0:
-                message = "No records found for the entered name or registration number."
-
-            if result:
-                sgpa, total_credits = calculate_sgpa(result)
-
-            cur.execute("SELECT Credits FROM `CUTM` WHERE Reg_No = ?", (registration,))
-            all_credits = cur.fetchall()
-            total_all_semester_credits = sum([sum([float(part) for part in row[0].split('+')]) for row in all_credits])
-
-            cgpa = calculate_cgpa(registration, name)
             conn.close()
-
-            if client:
-                try:
-                    current_time_utc = datetime.utcnow()
-                    current_time_ist = convert_to_ist(current_time_utc)
-                    db = client.get_database('cutm')
-                    collection = db.get_collection('userInput')
-                    data = {
-                        'registration': registration,
-                        'semester': semester,
-                        'time': current_time_ist
-                    }
-                    collection.insert_one(data)
-                except:
-                    pass
-
-            return render_template('display.html', result=result, count=count, sgpa=sgpa, total_credits=total_credits, cgpa=cgpa, total_all_semester_credits=total_all_semester_credits, message=message, selected_semester=semester, semesters=semesters)
-
-        return render_template('index.html', semesters=semesters)
+            
+            return f'''
+            <!DOCTYPE html>
+            <html>
+            <head><title>Search Results</title></head>
+            <body style="font-family: Arial, sans-serif; margin: 40px;">
+                <h1>Search Results</h1>
+                <p>Registration: {registration}</p>
+                <p>Semester: {semester}</p>
+                <p>Records found: {count}</p>
+                {"<p style='color: red;'>No records found</p>" if count == 0 else "<p style='color: green;'>Records found!</p>"}
+                <a href="/">Back to Search</a>
+            </body>
+            </html>
+            '''
+        except Exception as e:
+            return f"<h1>Database Error</h1><p>{str(e)}</p><a href='/'>Back</a>"
+    
+    # Try to use template if it exists
+    try:
+        return render_template('index.html', semesters=[])
     except Exception as e:
-        logger.error(f"Application error: {e}")
-        logger.error(f"Error type: {type(e)}")
-        import traceback
-        logger.error(f"Traceback: {traceback.format_exc()}")
-        try:
-            return render_template('index.html', error='An error occurred while processing your request', semesters=semesters)
-        except Exception as template_error:
-            logger.error(f"Template error: {template_error}")
-            return f"<h1>Service Temporarily Unavailable</h1><p>Error: {str(e)}</p><p>Template Error: {str(template_error)}</p>", 500
+        logger.error(f"Template error: {e}")
+        return "<h1>CUTM Result Portal</h1><p>Service is running but templates are not available.</p>"
 
 @app.route('/semesters', methods=['POST'])
 def get_semesters():
@@ -233,8 +241,17 @@ def about():
     try:
         return render_template('about.html')
     except Exception as e:
-        logger.error(f"About page error: {e}")
-        return f"<h1>About Page Error</h1><p>{str(e)}</p>", 500
+        return '''
+        <html>
+        <head><title>About - CUTM Result Portal</title></head>
+        <body style="font-family: Arial, sans-serif; margin: 40px;">
+            <h1>About CUTM Result Portal</h1>
+            <p>The New CUTM Result Portal 2.0 provides easy access to student results.</p>
+            <p>Developed by Yuvraj Sharma</p>
+            <a href="/">Back to Home</a>
+        </body>
+        </html>
+        ''', 200
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 10000))
