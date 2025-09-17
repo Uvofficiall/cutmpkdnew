@@ -6,11 +6,24 @@ from pymongo import MongoClient
 from datetime import datetime
 import pytz
 import hashlib
+import logging
+import sys
 
 load_dotenv()
 
-app = Flask(__name__)
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+app = Flask(__name__, template_folder='templates', static_folder='static')
 app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key-here')
+
+# Log template and static folder paths
+logger.info(f"Template folder: {app.template_folder}")
+logger.info(f"Static folder: {app.static_folder}")
+logger.info(f"Current working directory: {os.getcwd()}")
+logger.info(f"Templates exist: {os.path.exists('templates')}")
+logger.info(f"Index.html exists: {os.path.exists('templates/index.html')}")
 
 # Initialize database if it doesn't exist
 def init_db():
@@ -176,8 +189,15 @@ def home():
 
         return render_template('index.html', semesters=semesters)
     except Exception as e:
-        print(f"Application error: {e}")
-        return render_template('index.html', error='An error occurred while processing your request', semesters=semesters)
+        logger.error(f"Application error: {e}")
+        logger.error(f"Error type: {type(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        try:
+            return render_template('index.html', error='An error occurred while processing your request', semesters=semesters)
+        except Exception as template_error:
+            logger.error(f"Template error: {template_error}")
+            return f"<h1>Service Temporarily Unavailable</h1><p>Error: {str(e)}</p><p>Template Error: {str(template_error)}</p>", 500
 
 @app.route('/semesters', methods=['POST'])
 def get_semesters():
@@ -204,10 +224,18 @@ def admin_panel():
 def admin_logout():
     return redirect('/')
 
+@app.route('/health')
+def health():
+    return {'status': 'healthy', 'message': 'CUTM Result Portal is running'}
+
 @app.route('/about')
 def about():
-    return render_template('about.html')
+    try:
+        return render_template('about.html')
+    except Exception as e:
+        logger.error(f"About page error: {e}")
+        return f"<h1>About Page Error</h1><p>{str(e)}</p>", 500
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 8081))
+    port = int(os.environ.get('PORT', 10000))
     app.run(host='0.0.0.0', port=port, debug=False)
